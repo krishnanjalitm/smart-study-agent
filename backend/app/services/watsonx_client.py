@@ -17,14 +17,23 @@ class WatsonxClient:
     """Singleton-style wrapper for IBM watsonx.ai Granite model inference."""
 
     def __init__(self):
-        credentials = Credentials(
-            url=settings.WATSONX_URL,
-            api_key=settings.WATSONX_API_KEY,
-        )
-        self._client = APIClient(credentials)
+        self._client = None
         self._model_id   = settings.GRANITE_MODEL_ID
         self._project_id = settings.WATSONX_PROJECT_ID
-        logger.info(f"WatsonxClient initialised → model={self._model_id}")
+        
+        if not settings.WATSONX_API_KEY or settings.WATSONX_API_KEY == "your_ibm_watsonx_api_key":
+            logger.warning("WatsonxClient: No API key configured. Watsonx services will be unavailable.")
+            return
+
+        try:
+            credentials = Credentials(
+                url=settings.WATSONX_URL,
+                api_key=settings.WATSONX_API_KEY,
+            )
+            self._client = APIClient(credentials)
+            logger.info(f"WatsonxClient initialised → model={self._model_id}")
+        except Exception as exc:
+            logger.error(f"WatsonxClient: Failed to initialise APIClient: {exc}")
 
     def _get_model(
         self,
@@ -33,6 +42,8 @@ class WatsonxClient:
         top_p: float        = 0.9,
     ) -> ModelInference:
         """Instantiate a ModelInference object with the given parameters."""
+        if not self._client:
+            raise RuntimeError("watsonx APIClient is not initialised. Check your WATSONX_API_KEY in the .env file.")
         params = {
             GenParams.DECODING_METHOD: DecodingMethods.SAMPLE,
             GenParams.MAX_NEW_TOKENS:  max_new_tokens,
