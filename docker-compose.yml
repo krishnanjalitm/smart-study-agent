@@ -1,0 +1,85 @@
+version: "3.9"
+
+services:
+  # ── MongoDB ─────────────────────────────────────────────────────────────────
+  mongo:
+    image: mongo:7.0
+    container_name: ssg_mongo
+    restart: unless-stopped
+    volumes:
+      - mongo_data:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: smart_study_db
+    ports:
+      - "27017:27017"
+    networks:
+      - ssg_net
+
+  # ── Redis (Celery broker) ───────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: ssg_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    networks:
+      - ssg_net
+
+  # ── Flask Backend ───────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ssg_backend
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      MONGO_URI: mongodb://mongo:27017
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - uploads_data:/app/uploads
+      - chroma_data:/app/chroma_store
+      - ./backend/logs:/app/logs
+    ports:
+      - "5000:5000"
+    depends_on:
+      - mongo
+      - redis
+    networks:
+      - ssg_net
+
+  # ── React Frontend ──────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: ssg_frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - ssg_net
+
+  # ── IBM Langflow ────────────────────────────────────────────────────────────
+  langflow:
+    image: langflowai/langflow:latest
+    container_name: ssg_langflow
+    restart: unless-stopped
+    ports:
+      - "7860:7860"
+    environment:
+      LANGFLOW_DATABASE_URL: sqlite:///./langflow.db
+    networks:
+      - ssg_net
+
+volumes:
+  mongo_data:
+  uploads_data:
+  chroma_data:
+
+networks:
+  ssg_net:
+    driver: bridge

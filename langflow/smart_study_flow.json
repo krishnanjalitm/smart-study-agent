@@ -1,0 +1,143 @@
+{
+  "name": "Smart Study Generator – IBM Langflow Workflow",
+  "description": "Multi-agent orchestration pipeline using IBM Granite models via watsonx.ai",
+  "version": "1.0",
+  "nodes": [
+    {
+      "id": "input_node",
+      "type": "TextInput",
+      "label": "Student Question",
+      "position": { "x": 50, "y": 200 },
+      "data": { "input_value": "What is photosynthesis?" }
+    },
+    {
+      "id": "doc_selector",
+      "type": "SelectInput",
+      "label": "Document Selector",
+      "position": { "x": 250, "y": 100 },
+      "data": { "options": ["All Documents", "Selected Documents"] }
+    },
+    {
+      "id": "embedding_node",
+      "type": "IBMWatsonxEmbeddings",
+      "label": "IBM Slate Embeddings",
+      "position": { "x": 450, "y": 100 },
+      "data": {
+        "model_id": "ibm/slate-125m-english-rtrvr",
+        "project_id": "{WATSONX_PROJECT_ID}",
+        "api_key": "{WATSONX_API_KEY}"
+      }
+    },
+    {
+      "id": "chroma_retriever",
+      "type": "ChromaVectorStore",
+      "label": "ChromaDB Retriever",
+      "position": { "x": 650, "y": 100 },
+      "data": {
+        "collection_name": "study_documents",
+        "persist_directory": "./chroma_store",
+        "search_type": "similarity",
+        "k": 5
+      }
+    },
+    {
+      "id": "rag_agent",
+      "type": "IBMWatsonxLLM",
+      "label": "RAG Agent (IBM Granite)",
+      "position": { "x": 850, "y": 200 },
+      "data": {
+        "model_id": "ibm/granite-13b-instruct-v2",
+        "project_id": "{WATSONX_PROJECT_ID}",
+        "api_key": "{WATSONX_API_KEY}",
+        "max_new_tokens": 1024,
+        "temperature": 0.3,
+        "system_prompt": "You are an expert academic tutor. Use only the provided context to answer the student's question. Always cite sources."
+      }
+    },
+    {
+      "id": "summary_agent",
+      "type": "IBMWatsonxLLM",
+      "label": "Summary Agent (IBM Granite)",
+      "position": { "x": 850, "y": 350 },
+      "data": {
+        "model_id": "ibm/granite-13b-instruct-v2",
+        "max_new_tokens": 1500,
+        "temperature": 0.5,
+        "system_prompt": "You are an expert academic summariser. Generate clear, structured summaries."
+      }
+    },
+    {
+      "id": "quiz_agent",
+      "type": "IBMWatsonxLLM",
+      "label": "Quiz Generator Agent (IBM Granite)",
+      "position": { "x": 850, "y": 500 },
+      "data": {
+        "model_id": "ibm/granite-13b-instruct-v2",
+        "max_new_tokens": 2048,
+        "temperature": 0.6,
+        "system_prompt": "You are an expert exam setter. Generate high-quality questions in valid JSON."
+      }
+    },
+    {
+      "id": "flashcard_agent",
+      "type": "IBMWatsonxLLM",
+      "label": "Flashcard Agent (IBM Granite)",
+      "position": { "x": 850, "y": 650 },
+      "data": {
+        "model_id": "ibm/granite-13b-instruct-v2",
+        "max_new_tokens": 2048,
+        "temperature": 0.7,
+        "system_prompt": "You are an expert educator. Create effective study flashcards."
+      }
+    },
+    {
+      "id": "planner_agent",
+      "type": "IBMWatsonxLLM",
+      "label": "Study Planner Agent (IBM Granite)",
+      "position": { "x": 850, "y": 800 },
+      "data": {
+        "model_id": "ibm/granite-13b-instruct-v2",
+        "max_new_tokens": 3000,
+        "temperature": 0.4,
+        "system_prompt": "You are an expert academic study coach. Create personalised, realistic study schedules."
+      }
+    },
+    {
+      "id": "router",
+      "type": "ConditionalRouter",
+      "label": "Task Router",
+      "position": { "x": 300, "y": 300 },
+      "data": {
+        "routes": [
+          { "condition": "task == 'qa'",        "target": "rag_agent" },
+          { "condition": "task == 'summary'",    "target": "summary_agent" },
+          { "condition": "task == 'quiz'",       "target": "quiz_agent" },
+          { "condition": "task == 'flashcard'",  "target": "flashcard_agent" },
+          { "condition": "task == 'plan'",       "target": "planner_agent" }
+        ]
+      }
+    },
+    {
+      "id": "output_node",
+      "type": "TextOutput",
+      "label": "Response Output",
+      "position": { "x": 1100, "y": 400 }
+    }
+  ],
+  "edges": [
+    { "source": "input_node",      "target": "router" },
+    { "source": "doc_selector",    "target": "embedding_node" },
+    { "source": "embedding_node",  "target": "chroma_retriever" },
+    { "source": "chroma_retriever","target": "rag_agent" },
+    { "source": "router",          "target": "rag_agent",      "condition": "qa" },
+    { "source": "router",          "target": "summary_agent",  "condition": "summary" },
+    { "source": "router",          "target": "quiz_agent",     "condition": "quiz" },
+    { "source": "router",          "target": "flashcard_agent","condition": "flashcard" },
+    { "source": "router",          "target": "planner_agent",  "condition": "plan" },
+    { "source": "rag_agent",       "target": "output_node" },
+    { "source": "summary_agent",   "target": "output_node" },
+    { "source": "quiz_agent",      "target": "output_node" },
+    { "source": "flashcard_agent", "target": "output_node" },
+    { "source": "planner_agent",   "target": "output_node" }
+  ]
+}
